@@ -204,7 +204,7 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 
 	while (1)
 	{
-		len = recv(s, recv_buf, strlen(recv_buf), 0);
+		len = recv(s, recv_buf, sizeof(recv_buf), 0);
 
 		if (len <= 0)
 		{
@@ -219,7 +219,7 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 		}
 		else
 		{
-			recv_buf[len] = 0;
+			recv_buf[len-1] = 0;// the last character is '\n'
 			string msg(recv_buf);
 			cout << string("c:") + recv_buf << endl;
 			memset(recv_buf, 0, sizeof(recv_buf));
@@ -270,50 +270,58 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 				}
 				else if (root_state == no)
 				{
-					cout << "402 User not allowed to execute this command." << endl;
+					class_ptr->sendMsg(s, string("402 User not allowed to execute this command."));
+					cout << "s:402 User not allowed to execute this command." << endl;
 				}
 				else
 				{
 
 				}
 			}
-			else if ((msg.substr(0, msg.find(" ")) == command_array[Login])&&msg.length()>6)
+			else if ((msg.substr(0, msg.find(" ")) == command_array[Login])&&msg.length()>6)// rule out the case "login"
 			{
-				const char* delim = " ";
-				char * tmp = new char;
-				char* p = new char;
-				p = strtok(const_cast<char*>(msg.c_str()), delim);
-				tmp = "login";
-				if (strcmp(p, tmp) == 0)
+				if (log_state == logout)
 				{
-					p = strtok(NULL, delim);
-					for (i = 0; i < class_ptr->userCount; i++)
+					const char* delim = " ";
+					char * tmp = new char;
+					char* p = new char;
+					p = strtok(const_cast<char*>(msg.c_str()), delim);
+					tmp = "login";
+					if (strcmp(p, tmp) == 0)
 					{
-						if (strcmp(p, class_ptr->userList[i].userID) == 0)
+						p = strtok(NULL, delim);
+						for (i = 0; i < class_ptr->userCount; i++)
 						{
-							p = strtok(NULL, delim);
-							if (strcmp(p, class_ptr->userList[i].password) == 0)
+							if (strcmp(p, class_ptr->userList[i].userID) == 0)
 							{
-								userIndex = i;
-								log_state = login;
-								class_ptr->userList[userIndex].log_state = true;
-								if (class_ptr->userList[userIndex].root == true)
+								p = strtok(NULL, delim);
+								if (strcmp(p, class_ptr->userList[i].password) == 0)
 								{
-									root_state = yes;
+									userIndex = i;
+									log_state = login;
+									class_ptr->userList[userIndex].log_state = true;
+									if (class_ptr->userList[userIndex].root == true)
+									{
+										root_state = yes;
+									}
+									class_ptr->sendMsg(s, string("200 OK"));
+									cout << "s:200 OK" << endl;
+									break;
 								}
-								class_ptr->sendMsg(s, string("200 OK"));
-								cout << "s:200 OK" << endl;
-								break;
 							}
 						}
-					}
-					if (log_state == logout)
-					{
-						class_ptr->sendMsg(s, string("410 Wrong UserID or Password"));
-						cout << "s:410 Wrong UserID or Password" << endl;
+						if (log_state == logout)
+						{
+							class_ptr->sendMsg(s, string("410 Wrong UserID or Password"));
+							cout << "s:410 Wrong UserID or Password" << endl;
+						}
 					}
 				}
-
+				else
+				{
+					class_ptr->sendMsg(s, string("420 You are currently logged in, don`t login again"));
+					cout << "s:420 You are currently logged in, don`t login again" << endl;
+				}
 			}
 			else if (msg == command_array[Logout])
 			{
@@ -322,12 +330,12 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 					log_state = logout;
 					class_ptr->userList[userIndex].log_state = false;
 					class_ptr->sendMsg(s, string("200 OK"));
-					cout << "200 OK" << endl;
+					cout << "s:200 OK" << endl;
 				}
 				else
 				{
 					class_ptr->sendMsg(s, string("401 You are not currently logged in, login first"));
-					cout << "401 You are not currently logged in, login first" << endl;
+					cout << "s:401 You are not currently logged in, login first" << endl;
 				}
 			}
 			else if (msg == command_array[Quit])
@@ -352,7 +360,7 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 			else
 			{
 				class_ptr->sendMsg(s, errMsg);
-				cout << errMsg << endl;
+				cout << "s:" + errMsg << endl;
 			}
 		}
 	}

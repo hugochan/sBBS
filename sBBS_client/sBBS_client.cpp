@@ -115,6 +115,7 @@ int sBBS_client::sendMsg(string msg_send)
 int sBBS_client::client_proc(void)
 {
 	fd_set readfds;
+	bool keyboard_state = true;// keyboard event always comes first for a client
 	int retval, len;
 	char recv_buf[1024];
 	char send_buf[1024];
@@ -129,40 +130,47 @@ int sBBS_client::client_proc(void)
 	}
 	while (1)
 	{
-		if (kbhit())
+		if (keyboard_state == true)
 		{
-			cout << "c:";
-			if (cin.getline(send_buf, strlen(send_buf)))
+			if (kbhit())// querying keyboard event
 			{
-				sendMsg(send_buf);
-				memset(send_buf, 0, sizeof(send_buf));
+				cout << "c:";
+				if (cin.getline(send_buf, sizeof(send_buf)))
+				{
+					sendMsg(send_buf + string("\n"));
+					memset(send_buf, 0, sizeof(send_buf));
+					keyboard_state = false;
+				}
 			}
 		}
-
-		FD_SET(sock, &readfds);
-		retval = select(0, &readfds, NULL, NULL, &timeout);// unblocking
-		if (retval == SOCKET_ERROR)
+		else
 		{
-			retval = WSAGetLastError();
-			break;
-		}
-
-		if (retval = FD_ISSET(sock, &readfds))
-		{
-			len = recv(sock, recv_buf, strlen(recv_buf), 0);
-
-			if (len <= 0)
+			FD_SET(sock, &readfds);
+			retval = select(0, &readfds, NULL, NULL, 0);// blocking
+			if (retval == SOCKET_ERROR)
 			{
 				retval = WSAGetLastError();
-				if (retval != WSAEWOULDBLOCK && retval != WSAECONNRESET)
-				{
-					cerr << "recv() failed !" << endl;
-					break;
-				}
 				break;
 			}
-			recv_buf[len] = 0;
-			cout << string("s:") + recv_buf << endl;
+
+			if (retval = FD_ISSET(sock, &readfds))
+			{
+				len = recv(sock, recv_buf, sizeof(recv_buf), 0);
+
+				if (len <= 0)
+				{
+					retval = WSAGetLastError();
+					if (retval != WSAEWOULDBLOCK && retval != WSAECONNRESET)
+					{
+						cerr << "recv() failed !" << endl;
+						break;
+					}
+					break;
+				}
+				recv_buf[len] = 0;
+				cout << string("s:") + recv_buf << endl;
+				keyboard_state = true;
+			}
 		}
 	}
 
