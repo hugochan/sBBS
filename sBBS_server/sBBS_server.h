@@ -25,6 +25,7 @@ private:
 	{
 		char userID[32];
 		char password[32];
+		char* ipAddress;
 		bool root;
 		bool log_state;
 	};

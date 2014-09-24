@@ -25,10 +25,10 @@ using namespace std;
 sBBS_server::sBBS_server(UINT ptn)
 {
 	//initialize user list
-	userList[0] = { "root", "root01", true, false };
-	userList[1] = { "john", "john01", false, false };
-	userList[2] = { "david", "david01", false, false };
-	userList[3] = { "mary", "mary01", false, false };
+	userList[0] = { "root", "root01", new char[40], true, false };
+	userList[1] = { "john", "john01", new char[40], false, false };
+	userList[2] = { "david", "david01", new char[40], false, false };
+	userList[3] = { "mary", "mary01", new char[40], false, false };
 
 	//reset sock number
 	main_sock = 0;
@@ -156,6 +156,7 @@ int sBBS_server::initLogFile(void)
 			ifd.read(memblock, size);
 			messages = string(memblock);
 			ifd.close();
+			delete memblock;
 			return 0;
 		}
 
@@ -201,6 +202,15 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 	if (iResult != NO_ERROR)
 		printf("ioctlsocket failed with error: %ld\n", iResult);
 
+
+	// get client ip address
+	SOCKADDR_IN addr_client;
+	int nSize = sizeof(addr_client);
+	char* clientIpAddress = new char;
+	memset((void *)&addr_client, 0, sizeof(addr_client));
+	memset((void *)clientIpAddress, 0, sizeof(clientIpAddress));
+	getpeername(s, (SOCKADDR *)&addr_client, &nSize);
+	strcpy(clientIpAddress, inet_ntoa(addr_client.sin_addr));
 
 	while (1)
 	{
@@ -300,6 +310,7 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 									userIndex = i;
 									log_state = login;
 									class_ptr->userList[userIndex].log_state = true;
+									class_ptr->userList[userIndex].ipAddress = clientIpAddress;
 									if (class_ptr->userList[userIndex].root == true)
 									{
 										root_state = yes;
@@ -329,6 +340,7 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 				{
 					log_state = logout;
 					class_ptr->userList[userIndex].log_state = false;
+					memset(class_ptr->userList[userIndex].ipAddress, 0, sizeof(class_ptr->userList[userIndex].ipAddress));
 					class_ptr->sendMsg(s, string("200 OK"));
 					cout << "s:200 OK" << endl;
 				}
@@ -349,8 +361,9 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 				{
 					if (class_ptr->userList[i].log_state == true)
 					{
-						// ip address?
-						active_users += (class_ptr->userList[i].userID + string("\n"));
+						//userID iPAddress
+						active_users += (class_ptr->userList[i].userID + string("\t") + \
+							class_ptr->userList[i].ipAddress + string("\n"));
 
 					}
 				}
@@ -364,6 +377,7 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 			}
 		}
 	}
+	delete clientIpAddress;
 	return 0;
 }
 
