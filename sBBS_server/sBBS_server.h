@@ -31,9 +31,6 @@ private:
 	};
 	ifstream ifd;// log file handler
 	ofstream ofd;
-	//filebuf buffer;
-	//ostream output;
-	//istream input;
 	int userCount = 4;// user count
 	User userList[4];// user list
 	string messages;// log messages

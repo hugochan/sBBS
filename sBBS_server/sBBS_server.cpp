@@ -1,5 +1,6 @@
 #include <winsock.h>
 #include <windows.h>
+#include <io.h>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -125,18 +126,28 @@ int sBBS_server::sendMsg(SOCKET s, string msg_send)
 
 int sBBS_server::initLogFile(void)
 {
-	int begin, end, size;
+	unsigned int begin, end, size;
+	char filename[] = "messages.log";
 	char* memblock;
-	ifd.open("messages.log", ios::in);
+	ifd.open(filename, ios::in);
 	if (!ifd.good())
 	{
-		return -1;
+		if (access(filename, 0) != 0)// file exists ?
+		{
+			ofd.open(filename, ios::out);// open a new file
+			ofd.close();
+			return 0;
+		}
+		else
+		{
+			return -1;
+		}
 	}
 	else
 	{
-		begin = ifd.tellg();
+		begin = (unsigned int)ifd.tellg();
 		ifd.seekg(0, ios::end);
-		end = ifd.tellg();
+		end = (unsigned int)ifd.tellg();
 		size = end - begin;
 
 		if (size < 0)
@@ -154,6 +165,20 @@ int sBBS_server::initLogFile(void)
 			memblock = new char[size];
 			ifd.seekg(0, ios::beg);
 			ifd.read(memblock, size);
+			
+			// we find tellg fails to tell us the correct length of strings in file, and the "length" is always no less\
+			 than the real one, so we use the codes as follows to handle it.
+			char *str = memblock;
+			char *tmp_str = str;
+			while (str = strstr(str, "\n"))
+			{
+				str++;
+				if (str[0] == '\r')
+					str++;
+				tmp_str = str;
+			}
+			*tmp_str = '\0';
+
 			messages = string(memblock);
 			ifd.close();
 			delete memblock;
@@ -236,7 +261,8 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 
 			if (msg == command_array[Display])
 			{
-
+				class_ptr->sendMsg(s, string("200 OK\n") + class_ptr->messages);
+				cout << string("s:200 OK\n") + class_ptr->messages << endl;
 			}
 			else if (msg == command_array[Post] || post_sub_state == true)//{ Display, Post, ShutDown, Login, Logout, Quit, Who };
 			{
@@ -253,7 +279,8 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 				}
 				else// post_sub_state == true
 				{
-					class_ptr->messages += (msg + "\n");
+					class_ptr->messages += (msg + string("\n"));
+
 					// dealing with log file
 					class_ptr->ofd.open("messages.log", ios::out);
 					if (class_ptr->ofd.good())
@@ -271,8 +298,8 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 			{
 				if (root_state == yes)
 				{
-					cout << "s:200 OK" << endl;
 					class_ptr->sendMsg(s, string("200 OK"));
+					cout << "s:200 OK" << endl;
 					Sleep(10);// miliseconds
 					class_ptr->stopService();// close sockets
 					//class_ptr->closeLogFile();// close log file
@@ -352,7 +379,8 @@ DWORD WINAPI sBBS_server::server_proc(sBBS_server* class_ptr, SOCKET s)
 			}
 			else if (msg == command_array[Quit])
 			{
-
+				class_ptr->sendMsg(s, string("200 OK"));
+				cout << "s:200 OK" << endl;
 			}
 			else if (msg == command_array[Who])
 			{
@@ -400,11 +428,7 @@ int main(int argc, char** argv)
 
 	sBBS_server my_server(8000);
 	my_server.startService();
-/*	SOCKET sub_sock = accept(my_server.main_sock, (struct sockaddr *)&client_addr, &len);
-	while (1){
-		int retval = my_server.sendMsg(sub_sock, string("200 OK"));
-	}
-*/
+
 	while (1)
 	{
 		SOCKET sub_sock = accept(my_server.main_sock, (struct sockaddr *)&client_addr, &len);
@@ -413,15 +437,5 @@ int main(int argc, char** argv)
 			my_server.server_multiThread(sub_sock);
 		}
 	}
-
-	/*
-	sockaddr_in caddr;
-	int len = sizeof(caddr);
-	my_server.sub_sock = accept(my_server.main_sock, (struct sockaddr *)&caddr, &len);
-	char buf[20];
-	len = recv(my_server.sub_sock, buf, strlen(buf), 0);
-	cout << buf << endl;
-	*/
-	
 	system("pause");
 }

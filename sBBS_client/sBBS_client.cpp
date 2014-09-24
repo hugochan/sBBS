@@ -59,16 +59,13 @@ int sBBS_client::startConnection(void)
 			closesocket(sock);
 			sock = 0;
 			WSACleanup();
-			cerr << "connection error !" << endl;
 			return -1;
 		}
 		else
 		{
-			cout << "connection success !" << endl;
 		}
 	}
 	else{
-		cout << "connection success !" << endl;
 	}
 	return 0;
 }
@@ -101,7 +98,7 @@ int sBBS_client::sendMsg(string msg_send)
 	if (retval == -1)
 	{
 		retval = WSAGetLastError();
-		if (retval != WSAEWOULDBLOCK)
+		if (retval != WSAEWOULDBLOCK && retval != WSAECONNRESET)
 		{
 			closesocket(sock);
 			sock = 0;
@@ -128,17 +125,17 @@ int sBBS_client::client_proc(void)
 		retval = WSAGetLastError();
 		return -1;
 	}
+
+	cout << "c:";
 	while (1)
 	{
 		if (keyboard_state == true)
 		{
 			if (kbhit())// querying keyboard event
 			{
-				cout << "c:";
 				if (cin.getline(send_buf, sizeof(send_buf)))
 				{
 					sendMsg(send_buf + string("\n"));
-					memset(send_buf, 0, sizeof(send_buf));
 					keyboard_state = false;
 				}
 			}
@@ -170,6 +167,17 @@ int sBBS_client::client_proc(void)
 				recv_buf[len] = 0;
 				cout << string("s:") + recv_buf << endl;
 				keyboard_state = true;
+				if (string(send_buf) == "quit" && string(recv_buf) == "200 OK")
+				{
+					cout << "c:quit..." << endl;
+					break;
+				}
+				if (string(send_buf) == "shutdown" && string(recv_buf) == "200 OK")
+				{
+					cout << "c:server shutdown..." << endl;
+					break;
+				}
+				cout << "c:";
 			}
 		}
 	}
@@ -183,15 +191,27 @@ int sBBS_client::client_proc(void)
 
 int main(int argc, char** argv)
 {
+	int retval;
 	sBBS_client my_client("127.0.0.1", 8000);
-	my_client.startConnection();
-	my_client.client_proc();
-/*	while (1)
+	if (my_client.startConnection() == 0)// connect sucess
 	{
-		char* msg = new char;
-		cin.getline(msg, 20);
-		my_client.sendMsg(msg);
+		cout << "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"<< endl;
+		cout << "+-+-+-+-+-+    Simple Bulletin Board System   +-+-+-+-+-+" << endl;
+		cout << "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+" << endl;
+		cout << "Commands allowed by the server (s) for this client (c):" << endl;
+		cout << "display" << endl;
+		cout << "post" << endl;
+		cout << "shutdown" << endl;
+		cout << "login" << endl;
+		cout << "logout" << endl;
+		cout << "quit" << endl;
+		cout << "who" << endl;
+
+		my_client.client_proc();
 	}
-*/
+	else
+	{
+		cout << "connect error !" << endl;
+	}
 	system("pause");
 }
